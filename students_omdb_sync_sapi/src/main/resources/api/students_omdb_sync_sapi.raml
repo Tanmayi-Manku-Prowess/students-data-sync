@@ -1,0 +1,77 @@
+#%RAML 1.0
+title: students_omdb_sync_sapi
+baseUri: /api
+
+/get-files:
+  get:
+    description: "Picks Student records Json files from SFTP folder incoming to insert into oracle and mysql databases."
+    responses:
+      200:
+        body:
+          application/json:
+
+/oracle-insert:
+  post:
+    description: "Inserts bulk student records to oracle database."
+    body:
+      application/json:
+        example:
+          [
+            {
+              "student_id": 111,
+              "student_name": "Nikhil Gupta",
+              "student_phone": "9000012355",
+              "department": "Geography",
+              "has_joined": "No"
+            }
+          ]
+    responses:
+      201:
+        body:
+          application/json:
+            example:
+              {
+                "status": "Success",
+                "oracleInsertStatus": true,
+                "message": "records successfully inserted to oracle database."
+              }
+
+/mysql-insert:
+  post:
+    description: "Inserts bulk student records to mysql database."
+    body:
+      application/json:
+        example:
+          [
+            {
+              "student_id": 111,
+              "student_name": "Nikhil Gupta",
+              "student_phone": "9000012355",
+              "department": "Geography",
+              "has_joined": "No"
+            }
+          ]
+    responses:
+      201:
+        body:
+          application/json:
+            example:
+              {
+                "status": "Success",
+                "mysqlInsertStatus": true,
+                "message": "records successfully inserted to mysql database."
+              }
+
+/route-file:
+  post:
+    description: "Routes the processed file depending on the status of execution."
+    body:
+      application/json:
+    responses:
+      201:
+        body:
+          application/json:
+            example:
+              {
+                "message": "File moved to completed folder in sftp-root directory."
+              }

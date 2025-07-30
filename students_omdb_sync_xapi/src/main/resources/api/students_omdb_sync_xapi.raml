@@ -1,0 +1,16 @@
+#%RAML 1.0
+title: students_omdb_sync_xapi
+baseUri: /api
+
+/sync-students:
+  post:
+    description: Triggers the SFTP batch job to process one file and insert into Oracle/MySQL.
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {
+                "status": "Success",
+                "message": "Student records successfully inserted into OracleDB and MySqlDB from incoming sftp folder."
+              }

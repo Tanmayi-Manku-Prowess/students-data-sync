@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:sftp="http://www.mulesoft.org/schema/mule/sftp" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd 
+http://www.mulesoft.org/schema/mule/sftp http://www.mulesoft.org/schema/mule/sftp/current/mule-sftp.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+    <apikit:config name="students_omdb_sync_sapi-config" api="students_omdb_sync_sapi.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+    <flow name="students_omdb_sync_sapi-main">
+        <http:listener path="/api/*" config-ref="HTTP_Listener_config">
+            <http:response statusCode="#[vars.httpStatus default 200]">
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:response>
+            <http:error-response statusCode="#[vars.httpStatus default 500]">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[vars.outboundHeaders default {}]]]></http:headers>
+            </http:error-response>
+        </http:listener>
+        <apikit:router config-ref="students_omdb_sync_sapi-config" />
+        <error-handler ref="apikit_errohandlerError_Handler">
+            
+        </error-handler>
+    </flow>
+        <flow name="get:\get-files:students_omdb_sync_sapi-config">
+        <logger level="INFO" doc:name="get-files Endpoint flow start" doc:id="b3846b91-aae9-4d5b-93eb-0422d5a6af30" />
+        <sftp:list doc:name="List files in incoming folder" doc:id="70105deb-505b-4444-9a41-bb13ce3f7e77" 
+                   config-ref="SFTP_Config" directoryPath="incoming">
+            <sftp:matcher />
+        </sftp:list>
+        <choice doc:name="Check if folder is empty" doc:id="c5f16054-5208-4437-8655-9b6cb33172d3">
+            <when expression="#[sizeOf(payload) == 0]">
+                <ee:transform doc:name="Set Empty Folder Response" doc:id="5ad334b7-6d02-4bbe-9989-4bb6e9f48db5">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "status": "No files",
+    "message": "The incoming folder is empty."
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+                <logger level="INFO" message="No files found in incoming folder" doc:name="Log Empty Folder" />
+            </when>
+            <otherwise>
+                <set-variable value="#[payload[0]]" doc:name="topFile" doc:id="af0fc586-746c-42f9-967a-28ab6b2bbcda" variableName="topFile"/>
+                <sftp:read doc:name="Read Json File Data" doc:id="f39b318e-caba-4adc-813d-42ce3aa0eeb6" 
+                           config-ref="SFTP_Config" path="#[vars.topFile.attributes.fileName]"/>
+                <ee:transform doc:name="Transform Message" doc:id="e20cd6e1-e620-41ba-8d29-8bfed2740f20">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "fileName": vars.topFile.attributes.fileName,
+    "fileData": payload
+}]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+                <logger level="INFO" message="get:\get-files:students_omdb_sync_sapi-config - File read: #[vars.topFile.attributes.fileName]" />
+            </otherwise>
+        </choice>
+    </flow>
+    <flow name="post:\mysql-insert:application\json:students_omdb_sync_sapi-config">
+        <logger level="INFO" doc:name="MySql database Bulk Insert flow start" doc:id="6d3b22c6-e99d-4627-86fb-3824a62a54e3" message="#['MySql database Bulk Insert flow start']"/>
+		<try doc:name="Try" doc:id="8f218d64-0b8a-4c37-a219-1d008187b178" >
+			<db:bulk-insert doc:name="MySql DB Bulk insert" doc:id="3880526f-e31d-4c72-ace8-c44d5be0dca1" config-ref="MySQL_Database_Config">
+			<db:sql><![CDATA[INSERT INTO bulk_students_mysql (student_id, student_name, student_phone, department, has_joined)
+VALUES (:student_id, :student_name, :student_phone, :department, :has_joined)]]></db:sql>
+		</db:bulk-insert>
+			<ee:transform doc:name="Set Database Insert success status" doc:id="ee6405b2-368f-4732-ab72-5f8313bbc563" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status": true
+}]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<error-handler >
+				<on-error-continue enableNotifications="true" logException="true" doc:name="Handle Database Error" doc:id="80e0c71a-c2ab-4fc8-8d22-a3de05671040" type="ANY">
+					<ee:transform doc:name="Set Database Insert fail status" doc:id="6b3aa1a4-7b28-432b-b39a-6f42fe6a3eda" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status": false
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+				</on-error-continue>
+			</error-handler>
+		</try>
+		<ee:transform doc:name="Set Response after mysql db bulk insert">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  status: "Success",
+  mysqlInsertStatus: payload.status,
+  message: "records successfully inserted to mysql database."
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+		<logger level="INFO" doc:name="Log response after mysql db insert action" doc:id="66891357-833f-4850-8f53-91a1a7fafb06" message="#[payload]"/>
+    </flow>
+    <flow name="post:\oracle-insert:application\json:students_omdb_sync_sapi-config">
+        <logger level="INFO" doc:name="Oracle database Bulk Insert flow start" doc:id="4a9ff5f0-c9f4-47be-9fbf-0fce4d68d73b" message="Oracle database Bulk Insert flow start"/>
+		<try doc:name="Try" doc:id="305ecfdb-a57e-4f65-b3fb-7b39cc78992d" >
+			<db:bulk-insert doc:name="Oracle DB Bulk insert" doc:id="e954341b-964b-4f26-be67-5775a8a8636c" config-ref="Oracle_Database_Config">
+			<db:sql><![CDATA[INSERT INTO bulk_students (student_id, student_name, student_phone, department, has_joined)
+VALUES (:student_id, :student_name, :student_phone, :department, :has_joined)]]></db:sql>
+		</db:bulk-insert>
+			<ee:transform doc:name="Set Database Insert success status" doc:id="e2661718-b898-4a27-80b2-f786c785f49c" >
+				<ee:message >
+					<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status": true
+}]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<error-handler >
+				<on-error-continue enableNotifications="true" logException="true" doc:name="Handle Database error" doc:id="1b8e7869-be25-4311-8ae0-ab98c17f2cf6" type="ANY">
+					<ee:transform doc:name="Set Database Insert fail status" doc:id="a69c1d01-b65b-4c60-83b8-d697b305e941" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"status": false
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+				</on-error-continue>
+			</error-handler>
+		</try>
+		<ee:transform doc:name="Transform Message">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  status: "Success",
+  oracleInsertStatus: payload.status,
+  message: "records successfully inserted to oracle database."
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+		<logger level="INFO" doc:name="Log response after oracle db bulk insert" doc:id="2fb32ff8-c871-4aad-9800-dba61878f681" message="#[payload]"/>
+    </flow>
+    <flow name="post:\route-file:application\json:students_omdb_sync_sapi-config">
+        <logger level="INFO" doc:name="File routing flow start" doc:id="2e8fa5e7-edc1-4066-8116-51eb8212eaec" message="File routing flow start"/>
+		<choice doc:name="Route the processed file to remote folders" doc:id="1635fb9f-c2ae-41a7-92c1-2361f7e93683" >
+			<when expression="#[payload.mysqlInsertStatus == true and payload.oracleInsertStatus == false]">
+				<sftp:move doc:name="Move to partial remote folder" doc:id="02935f19-9ea9-4777-95f6-aa71efd0fc62" config-ref="SFTP_Config" sourcePath="#['incoming/'++ payload.processedFileName]" targetPath="partial"/>
+				<logger level="INFO" doc:name="Log file path" doc:id="36ab8f30-adef-4b76-b920-7a56250d4fdf" message="#[payload.processedFileName ++ 'Processed file moved to partial folder']"/>
+			</when>
+			<when expression="#[payload.mysqlInsertStatus == false and payload.oracleInsertStatus == false]">
+				<sftp:move doc:name="Move to error remote folder" doc:id="c03a8b55-ca3f-4a35-97a4-963a4bc72a2d" config-ref="SFTP_Config" sourcePath="#['incoming/'++ payload.processedFileName]" targetPath="error"/>
+				<logger level="INFO" doc:name="Log file path" doc:id="8fbfec99-b9c6-4e25-b213-235a26cf7809" message="#[payload.processedFileName ++'Processed file moved to error folder']"/>
+			</when>
+			<otherwise >
+				<sftp:move doc:name="Move to completed remote folder" doc:id="af29bedf-8252-46a4-92a2-2ea31f4b6d32" config-ref="SFTP_Config" sourcePath="#['incoming/'++ payload.processedFileName]" targetPath="completed"/>
+				<logger level="INFO" doc:name="Log file path" doc:id="255d628c-82cb-4685-b140-a3d50c444f41" message="#[payload.processedFileName ++ 'Processed file moved to completed folder']"/>
+			</otherwise>
+		</choice>
+		<ee:transform doc:name="Set Response message after file routing">
+            <ee:message>
+                <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "File has been routed in sftp-root directory."
+} as Object {encoding: "UTF-8", mediaType: "application/json"}]]></ee:set-payload>
+            </ee:message>
+        </ee:transform>
+		<logger level="INFO" doc:name="Log response after file routing" doc:id="6ae4821f-46f3-4abf-938f-9d4b37316c62" message="#[payload.message]"/>
+    </flow>
+</mule>

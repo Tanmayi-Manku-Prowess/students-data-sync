@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+      xmlns="http://www.mulesoft.org/schema/mule/core"
+      xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit"
+      xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+      xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+      xmlns:http="http://www.mulesoft.org/schema/mule/http"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="
+        http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+        http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+        http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd
+        http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+        http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd">
+
+    <apikit:config name="students_omdb_sync_papi-config" api="students_omdb_sync_papi.raml"
+                   outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus"/>
+
+    <flow name="post:\process-data-sync:application\json:students_omdb_sync_papi-config">
+    <logger level="INFO" message="Process API flow start" doc:name="Process API flow start"/>
+
+    <!-- Initialize variables -->
+    <http:request method="GET" config-ref="HTTP_Request_configuration"
+                  path="${process.request.filedata}" responseTimeout="${process.request.timeout}"
+                  doc:name="Request to get-files from sftp-root folder"/>
+    <set-variable variableName="fileName" value="#[payload.fileName]" doc:name="fileName"/>
+    <set-variable value="#[payload.fileData]" doc:name="fileData" doc:id="0c89a697-aa9d-428d-8325-b261912cca98" variableName="fileData"/>
+    <set-variable variableName="oracleStatuses" doc:name="Initialize Oracle Statuses" doc:id="6fbffce1-c53a-460f-901d-1634a42d9840" value="#[[]]"/>
+    <set-variable variableName="mysqlStatuses" doc:name="Initialize MySQL Statuses" doc:id="cef42511-1042-43cd-aec1-4f415f8569d3" value="#[[]]"/>
+
+    <batch:job jobName="Student_Records_Insertion_Batch_Job" doc:id="9820a2b2-dd6c-4757-8b33-d97927d2ddaf">
+        <batch:process-records>
+            <batch:step name="Oracle_Data_Insert_Batch_Step" doc:id="f98f1a3d-1803-4a10-991f-2dba9d2a8478" acceptPolicy="ALL">
+                <ee:transform doc:name="Prepare Oracle Payload">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.fileData]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+                <batch:aggregator size="10">
+						<http:request method="POST" config-ref="HTTP_Request_configuration" path="${process.request.oracleinsert}" doc:name="Request to Bulk Insert data to Oracle" responseTimeout="${process.request.timeout}" target="oracleInsertResult">
+                            <http:body><![CDATA[#[vars.fileData]]]></http:body>
+                            <http:headers><![CDATA[#[output application/java
+---
+{
+    "Content-Type" : "application/json"
+}]]]></http:headers>
+                        </http:request>
+						<ee:transform doc:name="Append Oracle Insert Status">
+                            <ee:variables>
+                                <ee:set-variable variableName="oracleStatuses"><![CDATA[%dw 2.0
+output application/java
+---
+vars.oracleStatuses ++ [vars.oracleInsertResult.status default false]]]></ee:set-variable>
+                            </ee:variables>
+                        </ee:transform>
+                </batch:aggregator>
+                <!-- Log statuses for debugging -->
+                <logger level="INFO" message="Oracle Statuses: #[vars.oracleStatuses]" doc:name="Log Oracle Statuses"/>
+            </batch:step>
+            <batch:step name="MySQL_Data_Insert_Batch_Step" doc:id="c0fe4eab-4d5a-4964-a9db-b729d76b6654" acceptPolicy="ALL">
+                <ee:transform doc:name="Prepare MySQL Payload">
+                    <ee:message>
+                        <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars.fileData]]></ee:set-payload>
+                    </ee:message>
+                </ee:transform>
+                <batch:aggregator size="10">
+						<http:request method="POST" config-ref="HTTP_Request_configuration" path="${process.request.mysqlinsert}" doc:name="Request to Bulk Insert data to MySql" responseTimeout="${process.request.timeout}" target="mysqlInsertResult">
+                            <http:body><![CDATA[#[vars.fileData]]]></http:body>
+                            <http:headers><![CDATA[#[output application/java
+---
+{
+    "Content-Type" : "application/json"
+}]]]></http:headers>
+                        </http:request>
+						<ee:transform doc:name="Append MySQL Insert Status">
+                            <ee:variables>
+                                <ee:set-variable variableName="mysqlStatuses"><![CDATA[%dw 2.0
+output application/java
+---
+vars.mysqlStatuses ++ [vars.mysqlInsertResult.status default false]
+]]></ee:set-variable>
+                            </ee:variables>
+                        </ee:transform>
+                </batch:aggregator>
+                <!-- Log statuses for debugging -->
+                <logger level="INFO" message="MySQL Statuses: #[vars.mysqlStatuses]" doc:name="Log MySQL Statuses"/>
+            </batch:step>
+        </batch:process-records>
+        <batch:on-complete>
+            <!-- Aggregate statuses -->
+            <ee:transform doc:name="Set Insert Status flags to route" doc:id="0dd40a94-13af-4151-81ad-29f1bc595c9c">
+                <ee:message>
+                    <ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    "oracleInsertStatus": vars.oracleStatuses[0],
+    "mysqlInsertStatus": vars.mysqlStatuses[0],
+    "processedFileName": vars.fileName
+}]]></ee:set-payload>
+                </ee:message>
+            </ee:transform>
+            <!-- Log final payload for debugging -->
+            <logger level="INFO" message="Final payload for routing: #[payload]" doc:name="Log Final Payload"/>
+            <!-- Call file routing API -->
+            <http:request method="POST" config-ref="HTTP_Request_configuration"
+                          path="${process.request.routefile}"
+                          responseTimeout="${process.request.timeout}"
+                          doc:name="Request to Route File">
+                <http:body><![CDATA[#[payload]]]></http:body>
+                <http:headers><![CDATA[#[output application/java
+---
+{
+    "Content-Type" : "application/json"
+}]]]></http:headers>
+            </http:request>
+        </batch:on-complete>
+    </batch:job>
+</flow>
+</mule>

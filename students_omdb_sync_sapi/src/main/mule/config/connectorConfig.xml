@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:sftp="http://www.mulesoft.org/schema/mule/sftp" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/sftp http://www.mulesoft.org/schema/mule/sftp/current/mule-sftp.xsd">
+	<configuration-properties doc:name="Configuration properties" doc:id="d64d7721-69dd-421a-8238-d95de79a1684" file="config-local.yaml" />
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="1cee8726-5d23-4c4c-a4f0-bb60511cad27" >
+		<http:listener-connection host="${system.http.host}" port="${system.http.port}" />
+	</http:listener-config>
+	<db:config name="Oracle_Database_Config" doc:name="Database Config" doc:id="c959d7de-28bd-46e8-bea7-b6e24d64275c" >
+		<db:oracle-connection host="${system.oracledb.host}" port="${system.oracledb.port}" user="${system.oracledb.user}" password="${system.oracledb.password}" serviceName="${system.oracledb.servicename}" />
+	</db:config>
+	<sftp:config name="SFTP_Config" doc:name="SFTP Config" doc:id="63d27973-5fe2-435d-afc1-524fc3c6b42c" >
+		<sftp:connection host="${system.sftp.host}" port="${system.sftp.port}" username="${system.sftp.username}" password="${system.sftp.password}" />
+	</sftp:config>
+	<db:config name="MySQL_Database_Config" doc:name="Database Config" doc:id="5134763c-331d-40bf-98c9-213ba3a72f6f" >
+		<db:my-sql-connection host="${system.mysqldb.host}" port="${system.mysqldb.port}" user="${system.mysqldb.user}" password="${system.mysqldb.password}" database="${system.mysqldb.database}" />
+	</db:config>
+</mule>

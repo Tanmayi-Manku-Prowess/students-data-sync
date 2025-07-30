@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+	<flow name="sftp_schedulerFlow" doc:id="eca1b2a7-8242-4b90-853b-644ff994a841" >
+		<scheduler doc:name="Process every 5 mins" doc:id="a618db23-bfeb-4fd9-bf73-81e5ec8ebf60" >
+			<scheduling-strategy >
+				<fixed-frequency frequency="${experience.scheduler.frequency}" timeUnit="MINUTES"/>
+			</scheduling-strategy>
+		</scheduler>
+		<logger level="INFO" doc:name="Start of flow execution" doc:id="b08c968a-a58f-4c7b-90f6-c9415e1850a0" message="Experience API main flow started"/>
+		<flow-ref doc:name="experience main flow reference" doc:id="bc2a11ef-f29e-410c-aa7b-0c0fb1a1ab06" name="post:\sync-students:students_omdb_sync_xapi-config"/>
+		<logger level="INFO" doc:name="End of flow execution" doc:id="261bf1c5-f0fd-4486-928a-8c542001a9f1" message="Experience API processing json files and inserting to db flow ended."/>
+	</flow>
+</mule>

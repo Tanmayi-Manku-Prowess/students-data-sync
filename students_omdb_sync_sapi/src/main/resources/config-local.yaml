@@ -1,0 +1,25 @@
+system:
+    http:
+        host: "0.0.0.0"
+        port: "8083"
+        
+    oracledb:
+        host: "localhost"
+        port: "1521"
+        user: "muleuser"
+        password: "muleuser"
+        servicename: "XEPDB1"
+    
+    mysqldb:
+        host: "sql.freedb.tech"
+        port: "3306"
+        user: "freedb_mule_user" 
+        password: "Gu&x?C&aJ4n8Q*H"
+        database: "freedb_muleproject"
+        
+    sftp:
+        workingDirectory: "sftp-root"
+        host: "us-east-1.sftpcloud.io"
+        port: "22"
+        username: "18c1068ce6c24667a6e46cf9f25286e1"
+        password: "mtO5zSc881QLGw5gwsrONJ7vlbqFpn9G"

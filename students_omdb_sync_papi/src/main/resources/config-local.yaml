@@ -1,0 +1,15 @@
+process:
+    http:
+        host: "0.0.0.0"
+        port: "8082"
+        base: "/api"
+    
+    request:
+        host: "0.0.0.0"
+        port: "8083"
+        base: "/api"
+        filedata: "get-files"
+        oracleinsert: "oracle-insert"
+        mysqlinsert: "mysql-insert"
+        routefile: "route-file"
+        timeout: "70000"

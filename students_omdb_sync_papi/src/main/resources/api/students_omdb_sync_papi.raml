@@ -1,0 +1,45 @@
+#%RAML 1.0
+title: students_omdb_sync_papi
+baseUri: /api
+
+/process-data-sync:
+  post:
+    description: "Structure json file data, trigger to insert the data to database and route the files."
+    body:
+      application/json:
+    responses:
+      200:
+        body:
+          application/json:
+            example:
+              {
+                "status": "Success",
+                "oracleInsert": true,
+                "mysqlInsert": true,
+                "message": "student records successfully inserted into both oracle and mysql",
+                "fileMovedTo": "/sftp-root/completed"
+              }
+      
+      207:
+        body:
+          application/json:
+            example:
+              {
+                "status": "Partial",
+                "oracleInsert": true,
+                "mysqlInsert": false,
+                "message": "student records Oracle insert succeeded; MySQL insert failed.",
+                "fileMovedTo": "/sftp-root/partial"
+              }
+
+      500:
+        body:
+          application/json:
+            example:
+              {
+                "status": "Failure",
+                "oracleInsert": false,
+                "mysqlInsert": false,
+                "message": "student records failed to insert into both oracle and mysql databases.",
+                "fileMovedTo": "/sftp-root/error"
+              }
